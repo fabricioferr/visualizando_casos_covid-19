@@ -1,0 +1,164 @@
+---
+title: "Visualizando Casos de Covid-19 no Brasil e na América do Sul em 2020 e 2021"
+author: "Fabrício Ferreira Caetano Santos"
+date: "`r format(Sys.time(), '%d-%m-%Y')`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+---
+
+Nesta apresentação, vamos observar a evolução dos casos de Covid-19 no Brasil e em países selecionados da América do Sul. Para isso, utilizaremos três métricas: Casos Acumulados, Mortes e Média Móvel. Através dessas métricas, teremos uma dimensão da situação sanitária do Brasil e de parte da América Latina. Começaremos, portanto, importando os pacotes e o nosso *dataset*. Essa apresentação é 100% replicável, portanto, qualquer pessoa que tenha acesso a este código poderá fazer as mesmas análises.
+
+# 1. Importação de Pacotes e Base de Dados
+Para verificar a evolução dos casos de Coronavírus no Brasil e América Latina, começaremos, primeiramente, importando os pacotes necessários e o *dataset*. Os pacotes que utilizaremos nesta análise são o `readr`, `ggplot2`, `dplyr` e `lubridate` e `zoo`.
+
+```{r Importando pacotes e base de dados, include=TRUE, message=FALSE, warning=FALSE}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(zoo)
+casos_coronavirus <- read_csv("https://github.com/RamiKrispin/coronavirus/raw/master/csv/coronavirus.csv")
+```
+
+# 2. Manipulação da Base de Dados
+O nosso *dataset* possui dados da quantidade de casos de Covid-19, mortes e casos recuperados de grande parte dos países do planeta. Depois de importá-lo, temos de recodificar algumas variáveis e manipular algumas variáveis para que nossa análise fique mais "limpa".
+
+```{r Tratando a base de dados, include=TRUE, message=FALSE, warning=FALSE}
+casos_coronavirus_ar <- casos_coronavirus %>% 
+  rename(Data = date,
+         País = country,
+         Província = province,
+         Tipo = type,
+         Casos = cases) %>% 
+  mutate(Tipo = case_when(Tipo == "confirmed" ~ "Confirmado",
+                          Tipo == "death" ~ "Morte",
+                          Tipo == "recovered" ~ "Recuperado"),
+         País = as.factor(País),
+         Província = as.factor(Província),
+         Tipo = as.factor(Tipo),
+         Ano = as.factor(year(Data)))
+str(casos_coronavirus_ar) # Verificamos a estrutura do *dataset*
+```
+Depois dessas transformações, nosso *dataset* está pronto para que possamos fazer algumas análises. Vamos começar analisando a evolução dos casos de Covid-19 para o Brasil. Mas, antes disso, vamos criar duas colunas. A primeira coluna é a de Casos Acumulados, a qual mostrará a quantidade de casos de Covid acumulados por dia. A segunda coluna será a Média Móvel de Casos de Covid, calculada a cada 7 dias. Faremos esse procedimento tanto para a quantidade de Casos quanto para a quantidade de mortes.
+
+```{r Manipulando base de dados e selecionando o Brasil, include=TRUE, message=FALSE}
+casos_coronavirus_brasil <- casos_coronavirus_ar %>% 
+  select(-Província) %>% 
+  filter(País == "Brazil", Tipo == "Confirmado") %>%
+  group_by(Tipo) %>% 
+  mutate(Casos_acumulados = cumsum(Casos),
+         Média_móvel = rollmean(Casos, 7, align = "center", fill = NA))
+
+```
+
+# 3. Evolução dos Casos de Covid-19 no Brasil
+
+## 3.1 Quantidade de Casos Acumulados de Covid-19 no Brasil
+O gráfico abaixo mostra a evolução da quantidade de casos acumulados de Covid-19 no Brasil em 2020 e 2021.
+```{r Casos acumulados de Covid-19, include=TRUE, message=FALSE, warning=FALSE, fig.align='center'}
+ggplot(casos_coronavirus_brasil, aes(x = Data, y = Casos_acumulados/1000000, color = Ano))+
+  geom_line(size = 1)+
+  #geom_smooth(method = "lm")+
+  theme_light()+
+  labs(title = "Evolução de Casos Confirmados de Covid-19 no Brasil",
+       x = "Data",
+       y = "Quantidade (Milhões de Casos)",
+       caption = "Fonte: Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+
+```
+
+## 3.2 Média Móvel de Casos Confirmados de Covid-19 no Brasil
+O gráfico abaixo mostra a média móvel de mortes de Covid-19 no Brasil em 2020 e 2021. A média móvel foi calculada para um período de 7 dias.
+
+```{r Visualizando casos de Covid-19 no Brasil em 2020, include=TRUE, message=FALSE, warning=FALSE, fig.align='center'}
+ggplot(casos_coronavirus_brasil, aes(x = Data, y = Média_móvel, color = Ano))+
+  geom_line(size = 1)+
+  geom_smooth(method = "lm")+
+  theme_light()+
+  labs(title = "Média Móvel de Casos Confirmados de Covid-19 no Brasil em \n 2020 e 2021",
+       x = "Data",
+       y = "Média Móvel em 7 dias",
+       caption = "Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+
+```
+# 4. Evolução das Mortes de Covid-19 no Brasil em 2020 e 2021
+Depois de analisar a evolução da quantidade de casos confirmados de Covid-19 através do cálculo da média móvel e dos casos acumulados em 2020 e 2021, vamos verificar a tendência de mortes ocasionadas pela Covid-19 no Brasil nesses mesmos anos.
+
+## 4.1 Mortes Acumuladas de Covid-19 no Brasil em 2020 e 2021
+```{r Mortes Acumuladas, include=TRUE, warning=FALSE, message=FALSE}
+casos_coronavirus_ar %>% 
+  select(-Província) %>% 
+  filter(País == "Brazil", Tipo == "Morte") %>% 
+  group_by(Tipo) %>% 
+  mutate(Mortes_acumuladas = cumsum(Casos),
+         Média_móvel = rollmean(Casos, 7, align = "center", fill = NA)) %>% 
+  ggplot(aes(x = Data, y = Mortes_acumuladas/1000000, color = Ano))+
+  geom_line(size = 1)+
+  theme_light()+
+  labs(title = "Mortes Acumuladas de Covid-19 no Brasil em 2020 e 2021",
+       x = "Data",
+       y = "Quantidade (Milhões de Casos)",
+       caption = "Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+```
+
+## 4.2 Média Móvel de Mortes no Brasil em 2020 e 2021
+```{r Média móvel de Mortes, include=TRUE, warning=FALSE, message=FALSE}
+casos_coronavirus_ar %>% 
+  select(-Província) %>% 
+  filter(País == "Brazil", Tipo == "Morte") %>%
+  group_by(Tipo) %>% 
+  mutate(Casos_acumulados = cumsum(Casos),
+         Média_móvel = rollmean(Casos, 7, align = "center", fill = NA)) %>% 
+  ggplot(aes(x = Data, y = Média_móvel, color = Ano))+
+  geom_line(size = 1)+
+  theme_light()+
+  labs(title = "Média Móvel de Mortes de Covid-19 no Brasil em 2020 e 2021",
+       x = "Data",
+       y = "Média Móvel em 7 dias",
+       caption = "Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+
+```
+E se quisermos comparar a situação da pandemia no Brasil com alguns países da América Latina?
+
+# 5. Comparando a Pandemia no Brasil com Países Selecionados da América Latina
+Depois de visualizar a Média Móvel de Casos e Mortes de Covid-19 no Brasil, possivelmente queremos comparar essa métrica com outros países e, assim, observar o desempenho do Brasil no combate à Covid em relação a outros países. Vamos comparar com alguns países da América Latina. Nesse sentido, vamos comparar a média móvel de Casos Confirmados de Covid-19 para o Brasil, Chile, Bolívia, Equador e Peru.
+
+## 5.1 Média Móvel de Casos Confirmados de Covid-19 no Brasil e Países Selecionados da América Latina
+
+```{r Casos de Covid-19 no Brasil x Países América Latina, message=FALSE, warning=FALSE, include=TRUE}
+América_latina <- c("Chile", "Bolivia", "Ecuador", "Peru", "Brazil")
+casos_coronavirus_ar %>% 
+  select(-Província) %>% 
+  filter(País == América_latina, Tipo == "Confirmado") %>% 
+  group_by(País) %>% 
+  mutate(Média_móvel = rollmean(Casos, 7, align = "center", fill = NA)) %>%
+  ggplot(aes(x = Data, y = Média_móvel, color = País))+
+  geom_line(size = 1)+
+  theme_light()+
+  labs(title = "Média Móvel de Casos de Covid-19 na América Latina \n (Países selecionados)",
+       x = "Data",
+       y = "Média Móvel em 7 dias",
+       caption = "Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+
+```
+Como vimos, dentre os países selecionados o Brasil, indiscutivelmente, foi o que apresentou o maior número de Casos absolutos de Covid-19, bem como a maior média móvel no período analisado. Mas, será que se analisarmos a média móvel de mortes, observar-se-á a mesma tendência?
+```{r Média Móvel de Mortes América Latina, include=TRUE, message=FALSE, warning=FALSE}
+casos_coronavirus_ar %>% filter(País == América_latina, Tipo == "Morte") %>% 
+  group_by(País) %>% 
+  mutate(Média_móvel = rollmean(Casos, 7, align = "center", fill = NA)) %>%
+  ggplot(aes(x = Data, y = Média_móvel, color = País))+
+  geom_line(size = 1)+
+  theme_light()+
+  labs(title = "Média Móvel de Mortes de Covid-19 na América Latina \n (Países selecionados)",
+       x = "Data",
+       y = "Média Móvel em 7 dias",
+       caption = "Fonte: Rami Krispin. Elaboração: Fabrício Ferreira")
+```
